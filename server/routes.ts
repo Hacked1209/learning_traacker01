@@ -1,13 +1,19 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertTopicSchema, type Topic } from "@shared/schema";
-import { z } from "zod";
+import { insertTopicSchema } from "@shared/schema";
 import { fromZodError } from "zod-validation-error";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+/**
+ * Attach all API routes to an existing Express app instance.
+ *
+ * This is used both for the local HTTP server and for serverless
+ * environments like Vercel, where we just export the Express app
+ * without calling `listen` directly.
+ */
+export function attachRoutes(app: Express): void {
   // Get all topics
-  app.get("/api/topics", async (req, res) => {
+  app.get("/api/topics", async (_req, res) => {
     try {
       const topics = await storage.getAllTopics();
       res.json(topics);
@@ -58,7 +64,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: validationError.message });
       }
 
-      const topic = await storage.updateTopic(req.params.id, validationResult.data);
+      const topic = await storage.updateTopic(
+        req.params.id,
+        validationResult.data,
+      );
       if (!topic) {
         return res.status(404).json({ error: "Topic not found" });
       }
@@ -82,7 +91,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to delete topic" });
     }
   });
+}
 
+/**
+ * Local/dev entrypoint: create an HTTP server around the Express app.
+ */
+export async function registerRoutes(app: Express): Promise<Server> {
+  attachRoutes(app);
   const httpServer = createServer(app);
   return httpServer;
 }
